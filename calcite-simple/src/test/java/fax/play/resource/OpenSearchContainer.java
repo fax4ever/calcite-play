@@ -5,7 +5,7 @@ import java.util.Map;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.utility.DockerImageName;
 
-public class OpenSearchContainer {
+public class OpenSearchContainer implements AutoCloseable {
 
    private ElasticsearchContainer container;
 
@@ -32,7 +32,8 @@ public class OpenSearchContainer {
             "password", "admin");
    }
 
-   public void stop() {
+   @Override
+   public void close() {
       if (container != null) {
          container.stop();
       }

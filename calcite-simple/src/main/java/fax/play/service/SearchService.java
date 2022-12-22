@@ -13,7 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.infinispan.commons.dataconversion.internal.Json;
 
-public class SearchService {
+public class SearchService implements AutoCloseable {
 
    private final RestClient restClient;
 
@@ -21,6 +21,7 @@ public class SearchService {
       restClient = restClient(username, password, host);
    }
 
+   @Override
    public void close() throws IOException {
       restClient.close();
    }

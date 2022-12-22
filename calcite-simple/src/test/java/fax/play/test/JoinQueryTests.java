@@ -9,10 +9,12 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.calcite.util.Closer;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.infinispan.commons.dataconversion.internal.Json;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -55,25 +57,24 @@ public class JoinQueryTests {
    private static OpenSearchContainer searchContainer;
    private static Map<String, String> start;
    private static SearchService searchService;
+   private static Closer closer = new Closer();
 
    @BeforeClass
    public static void beforeAll() {
       searchContainer = new OpenSearchContainer();
       start = searchContainer.start();
+      closer.add(searchContainer);
       searchService = new SearchService(start.get("username"), start.get("password"), start.get("host"));
+      closer.add(searchService);
    }
 
    @AfterClass
-   public static void afterAll() throws Exception {
-      try {
-         searchContainer.stop();
-      } finally {
-         searchService.close();
-      }
+   public static void afterAll() {
+      closer.close();
    }
 
-   @Test
-   public void test() throws Exception {
+   @Before
+   public void indexing() throws Exception {
       Response response = searchService.createIndex("table_1", Json.object(
             "id", Json.object("type", "integer")
       ));
@@ -110,5 +111,10 @@ public class JoinQueryTests {
       }
 
       assertThat(documents).isNotEmpty();
+   }
+
+   @Test
+   public void querying() {
+
    }
 }
