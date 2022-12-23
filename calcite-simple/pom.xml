@@ -16,13 +16,16 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <calcite.version>1.33.0-SNAPSHOT</calcite.version>
+<!--        <calcite.version>1.32.0</calcite.version>-->
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.apache.calcite</groupId>
             <artifactId>calcite-elasticsearch</artifactId>
-            <version>1.32.0</version>
+            <version>${calcite.version}</version>
         </dependency>
         <dependency>
             <groupId>org.infinispan</groupId>
@@ -34,6 +37,11 @@
             <artifactId>elasticsearch</artifactId>
             <version>1.17.6</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-testkit</artifactId>
+            <version>${calcite.version}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>

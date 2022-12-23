@@ -21,6 +21,10 @@ public class SearchService implements AutoCloseable {
       restClient = restClient(username, password, host);
    }
 
+   public RestClient getRestClient() {
+      return restClient;
+   }
+
    @Override
    public void close() throws IOException {
       restClient.close();

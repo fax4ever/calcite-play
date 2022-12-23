@@ -2,6 +2,10 @@ package fax.play.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +13,7 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.calcite.test.CalciteAssert;
 import org.apache.calcite.util.Closer;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
@@ -21,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import fax.play.resource.OpenSearchContainer;
+import fax.play.service.CalciteSearch;
 import fax.play.service.SearchService;
 
 public class JoinQueryTests {
@@ -49,8 +55,8 @@ public class JoinQueryTests {
     * );
     */
 
-   private static final int NUM_TABLES = 10;
-   private static final int NUM_ROWS = 10_000;
+   private static final int NUM_TABLES = 3;
+   private static final int NUM_ROWS = 10;
 
    private static final Logger LOG = LoggerFactory.getLogger(JoinQueryTests.class);
 
@@ -91,7 +97,7 @@ public class JoinQueryTests {
       Map<String, Json> documents =
             range.stream().collect(Collectors.toMap((key) -> key + "", (key) -> Json.object("id", key)));
       response = searchService.bulkIndexing("table_1", documents);
-      LOG.info(EntityUtils.toString(response.getEntity()));
+      assertThat(response.getStatusLine().getStatusCode()).isPositive();
 
       Random rand = new Random();
 
@@ -107,14 +113,27 @@ public class JoinQueryTests {
             documents.put(j + "", json);
          }
          response = searchService.bulkIndexing("table_" + i, documents);
-         LOG.info(EntityUtils.toString(response.getEntity()));
+         assertThat(response.getStatusLine().getStatusCode()).isPositive();
       }
-
-      assertThat(documents).isNotEmpty();
    }
 
    @Test
-   public void querying() {
+   public void querying() throws Exception {
+      List<String> tables = IntStream.rangeClosed(1, NUM_TABLES)
+            .mapToObj(i -> "table_" + i)
+            .toList();
 
+      CalciteSearch calciteSearch = new CalciteSearch(searchService.getRestClient(), Collections.singletonList("table_1"));
+//      try (Connection connection = calciteSearch.createConnection()) {
+//         try (Statement statement = connection.createStatement()) {
+//            ResultSet resultSet = statement.executeQuery("select * from table_1");
+//            assertThat(resultSet).isNotNull();
+//         }
+//      }
+
+      CalciteAssert.that()
+            .with(calciteSearch::createConnection)
+            .query("select * from elastic.table_1")
+            .returns("_MAP={id=1}\n_MAP={id=2}\n_MAP={id=3}\n_MAP={id=4}\n_MAP={id=5}\n_MAP={id=6}\n_MAP={id=7}\n_MAP={id=8}\n_MAP={id=9}\n_MAP={id=10}\n");
    }
 }
