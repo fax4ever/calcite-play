@@ -46,9 +46,24 @@ public class CalciteSearch {
    @SuppressWarnings("unchecked")
    public static List<Map<String, Object>> singleColumnMapExtraction(ResultSet resultSet) throws SQLException {
       ArrayList<Map<String, Object>> result = new ArrayList<>();
-      assert resultSet.getMetaData().getColumnCount() == 1; // this is the way the ES adapter works
+      assert resultSet.getMetaData().getColumnCount() == 1;
       while (resultSet.next()) {
          result.add((Map<String, Object>) resultSet.getObject(1));
+      }
+      return result;
+   }
+
+   @SuppressWarnings("unchecked")
+   public static List<List<Map<String, Object>>> multipleColumnMapExtraction(ResultSet resultSet) throws SQLException {
+      ArrayList<List<Map<String, Object>>> result = new ArrayList<>();
+      int columnCount = resultSet.getMetaData().getColumnCount();
+      assert columnCount > 1;
+      while (resultSet.next()) {
+         ArrayList<Map<String, Object>> row = new ArrayList<>(columnCount);
+         for (int i=0; i<columnCount; i++) {
+            row.add((Map<String, Object>) resultSet.getObject(1));
+         }
+         result.add(row);
       }
       return result;
    }

@@ -144,5 +144,11 @@ public class JoinQueryTests {
          assertThat(results).extracting("id").containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
          LOG.info(results.toString());
       }
+
+      List<List<Map<String, Object>>> joinResult = calciteSearch.executeQuery(
+            "select * from elastic.table_1 as t1 inner join elastic.table_2 as t2 on cast(t1._MAP['id'] AS INTEGER) = cast(t2._MAP['table_1_id'] AS INTEGER)",
+            CalciteSearch::multipleColumnMapExtraction);
+      assertThat(joinResult).isEmpty();
+      LOG.info(joinResult.toString());
    }
 }
