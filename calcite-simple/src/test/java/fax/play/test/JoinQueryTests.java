@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,21 +118,29 @@ public class JoinQueryTests {
 
    @Test
    public void querying() throws Exception {
-      List<String> tables = IntStream.rangeClosed(1, NUM_TABLES)
-            .mapToObj(i -> "table_" + i)
-            .toList();
-
-      CalciteSearch calciteSearch = new CalciteSearch(searchService.getRestClient(), Collections.singletonList("table_1"));
-//      try (Connection connection = calciteSearch.createConnection()) {
-//         try (Statement statement = connection.createStatement()) {
-//            ResultSet resultSet = statement.executeQuery("select * from table_1");
-//            assertThat(resultSet).isNotNull();
-//         }
-//      }
+      CalciteSearch calciteSearch = new CalciteSearch(searchService.getRestClient());
 
       CalciteAssert.that()
             .with(calciteSearch::createConnection)
             .query("select * from elastic.table_1")
             .returns("_MAP={id=1}\n_MAP={id=2}\n_MAP={id=3}\n_MAP={id=4}\n_MAP={id=5}\n_MAP={id=6}\n_MAP={id=7}\n_MAP={id=8}\n_MAP={id=9}\n_MAP={id=10}\n");
+
+      CalciteAssert.that()
+            .with(calciteSearch::createConnection)
+            .query("select cast(_MAP['id'] AS integer) AS num from elastic.table_1")
+            .returns("num=1\nnum=2\nnum=3\nnum=4\nnum=5\nnum=6\nnum=7\nnum=8\nnum=9\nnum=10\n");
+
+      String query = "select * from elastic.table_1 as t1 inner join elastic.table_2 as t2 on cast(t1._MAP['id'] AS INTEGER) = cast(t2._MAP['table_1_id'] AS INTEGER)";
+      CalciteAssert.that()
+            .with(calciteSearch::createConnection)
+            .query(query)
+            .returns("");
+
+      try (Connection connection = calciteSearch.createConnection()) {
+         try (Statement statement = connection.createStatement()) {
+            ResultSet resultSet = statement.executeQuery("select * from elastic.table_1");
+            assertThat(resultSet.getMetaData().getColumnCount()).isOne();
+         }
+      }
    }
 }
