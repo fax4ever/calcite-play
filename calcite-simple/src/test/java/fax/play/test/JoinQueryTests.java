@@ -2,9 +2,6 @@ package fax.play.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,10 +14,10 @@ import org.apache.calcite.util.Closer;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.infinispan.commons.dataconversion.internal.Json;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,7 +61,7 @@ public class JoinQueryTests {
    private static SearchService searchService;
    private static Closer closer = new Closer();
 
-   @BeforeClass
+   @BeforeAll
    public static void beforeAll() {
       searchContainer = new OpenSearchContainer();
       start = searchContainer.start();
@@ -73,12 +70,12 @@ public class JoinQueryTests {
       closer.add(searchService);
    }
 
-   @AfterClass
+   @AfterAll
    public static void afterAll() {
       closer.close();
    }
 
-   @Before
+   @BeforeEach
    public void indexing() throws Exception {
       Response response = searchService.createIndex("table_1", Json.object(
             "id", Json.object("type", "integer")
@@ -108,8 +105,10 @@ public class JoinQueryTests {
 
          documents = new HashMap<>(NUM_ROWS);
          for (int j = 0; j < NUM_ROWS; j++) {
-            Json json = Json.object("id", j, "table_" + (i - 1) + "_id", range.get(i));
-            documents.put(j + "", json);
+            int id = j + 1;
+            String docId = id + "";
+            Json json = Json.object("id", id, "table_" + (i - 1) + "_id", range.get(j));
+            documents.put(docId, json);
          }
          response = searchService.bulkIndexing("table_" + i, documents);
          assertThat(response.getStatusLine().getStatusCode()).isPositive();
@@ -136,11 +135,14 @@ public class JoinQueryTests {
             .query(query)
             .returns("");
 
-      try (Connection connection = calciteSearch.createConnection()) {
-         try (Statement statement = connection.createStatement()) {
-            ResultSet resultSet = statement.executeQuery("select * from elastic.table_1");
-            assertThat(resultSet.getMetaData().getColumnCount()).isOne();
-         }
+      List<Map<String, Object>> results = calciteSearch.executeQuery("select * from elastic.table_1", CalciteSearch::singleColumnMapExtraction);
+      assertThat(results).extracting("id").containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+      LOG.info(results.toString());
+
+      for (int i = 2; i <= NUM_TABLES; i++) {
+         results = calciteSearch.executeQuery("select * from elastic.table_" + i, CalciteSearch::singleColumnMapExtraction);
+         assertThat(results).extracting("id").containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+         LOG.info(results.toString());
       }
    }
 }
