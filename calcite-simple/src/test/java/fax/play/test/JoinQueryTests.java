@@ -2,6 +2,8 @@ package fax.play.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +11,8 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.schema.impl.ViewTable;
 import org.apache.calcite.test.CalciteAssert;
 import org.apache.calcite.util.Closer;
 import org.apache.http.util.EntityUtils;
@@ -60,7 +64,7 @@ public class JoinQueryTests {
    private static SearchService searchService;
    private static Closer closer = new Closer();
 
-   private final CalciteSearch calciteSearch = new CalciteSearch(searchService.getRestClient());;
+   private final CalciteSearch calciteSearch = new CalciteSearch(searchService.getRestClient());
 
    @BeforeAll
    public static void beforeAll() throws Exception {
@@ -150,5 +154,60 @@ public class JoinQueryTests {
             CalciteSearch::multipleColumnMapExtraction);
       assertThat(joinResult).isEmpty();
       LOG.info(joinResult.toString());
+   }
+
+   @Test
+   public void views() throws Exception {
+      List<Object> objects = calciteSearch.executeQuery(this::defineViews,
+            "select * from table_1",
+            CalciteSearch::singleColumnExtraction);
+
+      assertThat(objects).containsExactlyInAnyOrder("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
+
+      List<List<Object>> lists = calciteSearch.executeQuery(this::defineViews,
+            "select * from table_2",
+            CalciteSearch::multipleColumnExtraction);
+
+      assertThat(lists).isNotEmpty();
+
+      lists = calciteSearch.executeQuery(this::defineViews,
+            "select t2.id, t2.table_1_id from table_2 as t2",
+            CalciteSearch::multipleColumnExtraction);
+
+      assertThat(lists).isNotEmpty();
+   }
+
+   @Test
+   public void joins() throws Exception {
+//      List<List<Object>> lists = calciteSearch.executeQuery(this::defineViews,
+//            "select * from table_1 as t1 inner join table_2 as t2 on t1.id = t2.table_1_id",
+//            CalciteSearch::multipleColumnExtraction);
+//
+//      assertThat(lists).isNotEmpty();
+   }
+
+   public void defineViews(SchemaPlus root) {
+      String viewSql = "select"
+            + " cast(_MAP['id'] AS varchar(5)) AS \"id\""
+            + " from  \"elastic\".\"table_1\"";
+
+      root.add("table_1",
+            ViewTable.viewMacro(root, viewSql,
+                  Collections.singletonList("elastic"),
+                  Arrays.asList("elastic", "view"), false));
+
+      for (int i = 2; i <= NUM_TABLES; i++) {
+         String tableName = "table_" + i;
+         String foreignKeyName = "table_" + (i-1) + "_id";
+
+         viewSql = "select cast(_MAP['" + foreignKeyName + "'] AS varchar(5)) AS \"" + foreignKeyName + "\" ,"
+               + " cast(_MAP['id'] AS varchar(5)) AS \"id\""
+               + " from \"elastic\".\"" + tableName + "\"";
+
+         root.add(tableName,
+               ViewTable.viewMacro(root, viewSql,
+                     Collections.singletonList("elastic"),
+                     Arrays.asList("elastic", "view"), false));
+      }
    }
 }

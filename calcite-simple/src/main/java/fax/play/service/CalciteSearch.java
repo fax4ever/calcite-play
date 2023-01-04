@@ -56,12 +56,35 @@ public class CalciteSearch {
       }
    }
 
+   public static List<Object> singleColumnExtraction(ResultSet resultSet) throws SQLException {
+      ArrayList<Object> result = new ArrayList<>();
+      assert resultSet.getMetaData().getColumnCount() == 1;
+      while (resultSet.next()) {
+         result.add(resultSet.getObject(1));
+      }
+      return result;
+   }
+
    @SuppressWarnings("unchecked")
    public static List<Map<String, Object>> singleColumnMapExtraction(ResultSet resultSet) throws SQLException {
       ArrayList<Map<String, Object>> result = new ArrayList<>();
       assert resultSet.getMetaData().getColumnCount() == 1;
       while (resultSet.next()) {
          result.add((Map<String, Object>) resultSet.getObject(1));
+      }
+      return result;
+   }
+
+   public static List<List<Object>> multipleColumnExtraction(ResultSet resultSet) throws SQLException {
+      ArrayList<List<Object>> result = new ArrayList<>();
+      int columnCount = resultSet.getMetaData().getColumnCount();
+      assert columnCount > 1;
+      while (resultSet.next()) {
+         ArrayList<Object> row = new ArrayList<>(columnCount);
+         for (int i=0; i<columnCount; i++) {
+            row.add((resultSet.getObject(i+1)));
+         }
+         result.add(row);
       }
       return result;
    }
@@ -74,7 +97,7 @@ public class CalciteSearch {
       while (resultSet.next()) {
          ArrayList<Map<String, Object>> row = new ArrayList<>(columnCount);
          for (int i=0; i<columnCount; i++) {
-            row.add((Map<String, Object>) resultSet.getObject(1));
+            row.add((Map<String, Object>) resultSet.getObject(i+1));
          }
          result.add(row);
       }
