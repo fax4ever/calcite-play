@@ -162,33 +162,33 @@ public class JoinQueryTests {
             "select * from table_1",
             CalciteSearch::singleColumnExtraction);
 
-      assertThat(objects).containsExactlyInAnyOrder("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
+      assertThat(objects).containsExactlyInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 
       List<List<Object>> lists = calciteSearch.executeQuery(this::defineViews,
             "select * from table_2",
             CalciteSearch::multipleColumnExtraction);
 
-      assertThat(lists).isNotEmpty();
+      assertThat(lists).hasSize(10);
 
       lists = calciteSearch.executeQuery(this::defineViews,
             "select t2.id, t2.table_1_id from table_2 as t2",
             CalciteSearch::multipleColumnExtraction);
 
-      assertThat(lists).isNotEmpty();
+      assertThat(lists).hasSize(10);
    }
 
    @Test
    public void joins() throws Exception {
-//      List<List<Object>> lists = calciteSearch.executeQuery(this::defineViews,
-//            "select * from table_1 as t1 inner join table_2 as t2 on t1.id = t2.table_1_id",
-//            CalciteSearch::multipleColumnExtraction);
-//
-//      assertThat(lists).isNotEmpty();
+      List<List<Object>> lists = calciteSearch.executeQuery(this::defineViews,
+            "select * from table_1 as t1 inner join table_2 as t2 on t1.id = t2.table_1_id",
+            CalciteSearch::multipleColumnExtraction);
+
+      assertThat(lists).hasSize(10);
    }
 
    public void defineViews(SchemaPlus root) {
       String viewSql = "select"
-            + " cast(_MAP['id'] AS varchar(5)) AS \"id\""
+            + " cast(_MAP['id'] AS integer) AS \"id\""
             + " from  \"elastic\".\"table_1\"";
 
       root.add("table_1",
@@ -200,8 +200,8 @@ public class JoinQueryTests {
          String tableName = "table_" + i;
          String foreignKeyName = "table_" + (i-1) + "_id";
 
-         viewSql = "select cast(_MAP['" + foreignKeyName + "'] AS varchar(5)) AS \"" + foreignKeyName + "\" ,"
-               + " cast(_MAP['id'] AS varchar(5)) AS \"id\""
+         viewSql = "select cast(_MAP['" + foreignKeyName + "'] AS integer) AS \"" + foreignKeyName + "\" ,"
+               + " cast(_MAP['id'] AS integer) AS \"id\""
                + " from \"elastic\".\"" + tableName + "\"";
 
          root.add(tableName,
