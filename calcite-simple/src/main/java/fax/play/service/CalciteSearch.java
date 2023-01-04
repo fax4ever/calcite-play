@@ -8,6 +8,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import org.apache.calcite.adapter.elasticsearch.ElasticsearchSchema;
 import org.apache.calcite.jdbc.CalciteConnection;
@@ -26,15 +27,27 @@ public class CalciteSearch {
    }
 
    public Connection createConnection() throws SQLException {
+      return createConnectionWith(null);
+   }
+
+   public Connection createConnectionWith(Consumer<SchemaPlus> views) throws SQLException {
       Connection connection = DriverManager.getConnection("jdbc:calcite:lex=JAVA");
       SchemaPlus root = connection.unwrap(CalciteConnection.class).getRootSchema();
       root.add("elastic", new ElasticsearchSchema(restClient, objectMapper, null));
+
+      if (views != null) {
+         views.accept(root);
+      }
 
       return connection;
    }
 
    public <K> List<K> executeQuery(String sql, CheckedSQLFunction<ResultSet, List<K>> extractor) throws SQLException {
-      try (Connection connection = createConnection()) {
+      return executeQuery(null, sql, extractor);
+   }
+
+   public <K> List<K> executeQuery(Consumer<SchemaPlus> views, String sql, CheckedSQLFunction<ResultSet, List<K>> extractor) throws SQLException {
+      try (Connection connection = createConnectionWith(views)) {
          try (Statement statement = connection.createStatement()) {
             try (ResultSet resultSet = statement.executeQuery(sql)) {
                return extractor.apply(resultSet);

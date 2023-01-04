@@ -16,7 +16,6 @@ import org.elasticsearch.client.Response;
 import org.infinispan.commons.dataconversion.internal.Json;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,13 +60,17 @@ public class JoinQueryTests {
    private static SearchService searchService;
    private static Closer closer = new Closer();
 
+   private final CalciteSearch calciteSearch = new CalciteSearch(searchService.getRestClient());;
+
    @BeforeAll
-   public static void beforeAll() {
+   public static void beforeAll() throws Exception {
       searchContainer = new OpenSearchContainer();
       start = searchContainer.start();
       closer.add(searchContainer);
       searchService = new SearchService(start.get("username"), start.get("password"), start.get("host"));
       closer.add(searchService);
+
+      indexing();
    }
 
    @AfterAll
@@ -75,8 +78,7 @@ public class JoinQueryTests {
       closer.close();
    }
 
-   @BeforeEach
-   public void indexing() throws Exception {
+   private static void indexing() throws Exception {
       Response response = searchService.createIndex("table_1", Json.object(
             "id", Json.object("type", "integer")
       ));
@@ -117,8 +119,6 @@ public class JoinQueryTests {
 
    @Test
    public void querying() throws Exception {
-      CalciteSearch calciteSearch = new CalciteSearch(searchService.getRestClient());
-
       CalciteAssert.that()
             .with(calciteSearch::createConnection)
             .query("select * from elastic.table_1")
