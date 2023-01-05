@@ -46,6 +46,10 @@ public class CalciteSearch {
       return executeQuery(null, sql, extractor);
    }
 
+   public List<?> executeQuery(Consumer<SchemaPlus> views, String sql) throws SQLException {
+      return executeQuery(views, sql, CalciteSearch::columnExtractor);
+   }
+
    public <K> List<K> executeQuery(Consumer<SchemaPlus> views, String sql, CheckedSQLFunction<ResultSet, List<K>> extractor) throws SQLException {
       try (Connection connection = createConnectionWith(views)) {
          try (Statement statement = connection.createStatement()) {
@@ -54,6 +58,13 @@ public class CalciteSearch {
             }
          }
       }
+   }
+
+   public static List<?> columnExtractor(ResultSet resultSet) throws SQLException {
+      if (resultSet.getMetaData().getColumnCount() == 1) {
+         return singleColumnExtraction(resultSet);
+      }
+      return multipleColumnExtraction(resultSet);
    }
 
    public static List<Object> singleColumnExtraction(ResultSet resultSet) throws SQLException {

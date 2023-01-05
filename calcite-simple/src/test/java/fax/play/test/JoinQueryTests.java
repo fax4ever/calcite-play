@@ -13,7 +13,6 @@ import java.util.stream.IntStream;
 
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.ViewTable;
-import org.apache.calcite.test.CalciteAssert;
 import org.apache.calcite.util.Closer;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
@@ -54,8 +53,8 @@ public class JoinQueryTests {
     * );
     */
 
-   private static final int NUM_TABLES = 3;
-   private static final int NUM_ROWS = 10;
+   private static final int NUM_TABLES = 5;
+   private static final int NUM_ROWS = 10_000;
 
    private static final Logger LOG = LoggerFactory.getLogger(JoinQueryTests.class);
 
@@ -104,16 +103,11 @@ public class JoinQueryTests {
       Random rand = new Random();
 
       for (int i = 2; i <= NUM_TABLES; i++) {
-         List<Integer> finalRange = range;
-         range = IntStream.rangeClosed(1, NUM_ROWS)
-               .map(operand -> finalRange.get(rand.nextInt(NUM_ROWS)))
-               .boxed().toList();
-
          documents = new HashMap<>(NUM_ROWS);
          for (int j = 0; j < NUM_ROWS; j++) {
             int id = j + 1;
             String docId = id + "";
-            Json json = Json.object("id", id, "table_" + (i - 1) + "_id", range.get(j));
+            Json json = Json.object("id", id, "table_" + (i - 1) + "_id", rand.nextInt(NUM_ROWS+1));
             documents.put(docId, json);
          }
          response = searchService.bulkIndexing("table_" + i, documents);
@@ -123,29 +117,13 @@ public class JoinQueryTests {
 
    @Test
    public void querying() throws Exception {
-      CalciteAssert.that()
-            .with(calciteSearch::createConnection)
-            .query("select * from elastic.table_1")
-            .returns("_MAP={id=1}\n_MAP={id=2}\n_MAP={id=3}\n_MAP={id=4}\n_MAP={id=5}\n_MAP={id=6}\n_MAP={id=7}\n_MAP={id=8}\n_MAP={id=9}\n_MAP={id=10}\n");
-
-      CalciteAssert.that()
-            .with(calciteSearch::createConnection)
-            .query("select cast(_MAP['id'] AS integer) AS num from elastic.table_1")
-            .returns("num=1\nnum=2\nnum=3\nnum=4\nnum=5\nnum=6\nnum=7\nnum=8\nnum=9\nnum=10\n");
-
-      String query = "select * from elastic.table_1 as t1 inner join elastic.table_2 as t2 on cast(t1._MAP['id'] AS INTEGER) = cast(t2._MAP['table_1_id'] AS INTEGER)";
-      CalciteAssert.that()
-            .with(calciteSearch::createConnection)
-            .query(query)
-            .returns("");
-
       List<Map<String, Object>> results = calciteSearch.executeQuery("select * from elastic.table_1", CalciteSearch::singleColumnMapExtraction);
-      assertThat(results).extracting("id").containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+      assertThat(results).extracting("id").containsExactlyInAnyOrder(IntStream.range(1, NUM_ROWS + 1).boxed().toArray());
       LOG.info(results.toString());
 
       for (int i = 2; i <= NUM_TABLES; i++) {
          results = calciteSearch.executeQuery("select * from elastic.table_" + i, CalciteSearch::singleColumnMapExtraction);
-         assertThat(results).extracting("id").containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+         assertThat(results).extracting("id").containsExactlyInAnyOrder(IntStream.range(1, NUM_ROWS + 1).boxed().toArray());
          LOG.info(results.toString());
       }
 
@@ -162,28 +140,75 @@ public class JoinQueryTests {
             "select * from table_1",
             CalciteSearch::singleColumnExtraction);
 
-      assertThat(objects).containsExactlyInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+      assertThat(objects).containsExactlyInAnyOrder(IntStream.range(1, NUM_ROWS + 1).boxed().toArray());
 
       List<List<Object>> lists = calciteSearch.executeQuery(this::defineViews,
-            "select * from table_2",
-            CalciteSearch::multipleColumnExtraction);
-
-      assertThat(lists).hasSize(10);
-
-      lists = calciteSearch.executeQuery(this::defineViews,
             "select t2.id, t2.table_1_id from table_2 as t2",
             CalciteSearch::multipleColumnExtraction);
 
-      assertThat(lists).hasSize(10);
+      assertThat(lists).hasSize(NUM_ROWS);
    }
 
    @Test
    public void joins() throws Exception {
-      List<List<Object>> lists = calciteSearch.executeQuery(this::defineViews,
-            "select * from table_1 as t1 inner join table_2 as t2 on t1.id = t2.table_1_id",
-            CalciteSearch::multipleColumnExtraction);
+      StringBuilder query = new StringBuilder("SELECT * FROM table_1 AS t1 ");
+      for (int i = 2; i <= NUM_TABLES; i++) {
+         // INNER JOIN table_2 AS t2 ON t1.id = t2.table_1_id
+         String tableAlias = "t" + i;
+         query.append("inner join ");
+         query.append("table_" + i);
+         query.append(" as ");
+         query.append(tableAlias);
+         query.append(" on ");
+         query.append("t" + (i-1));
+         query.append(".id = ");
+         query.append(tableAlias);
+         query.append(".");
+         query.append("table_" + (i - 1) + "_id ");
+      }
+      query.append("WHERE t1.id <= ");
+      query.append(10);
 
-      assertThat(lists).hasSize(10);
+      long a = System.currentTimeMillis();
+
+      List<?> objects = calciteSearch.executeQuery(this::defineViews, query.toString());
+      assertThat(objects).isNotNull();
+
+      long b = System.currentTimeMillis();
+
+      long duration = b - a;
+      LOG.info("NUM_TABLES " + NUM_TABLES + " - NUM_ROWS " + NUM_ROWS + " - duration " + duration + " ms - " + objects);
+   }
+
+   @Test
+   public void joins_count() throws Exception {
+      StringBuilder query = new StringBuilder("SELECT count(*) FROM table_1 AS t1 ");
+      for (int i = 2; i <= NUM_TABLES; i++) {
+         // INNER JOIN table_2 AS t2 ON t1.id = t2.table_1_id
+         String tableAlias = "t" + i;
+         query.append("inner join ");
+         query.append("table_" + i);
+         query.append(" as ");
+         query.append(tableAlias);
+         query.append(" on ");
+         query.append("t" + (i-1));
+         query.append(".id = ");
+         query.append(tableAlias);
+         query.append(".");
+         query.append("table_" + (i - 1) + "_id ");
+      }
+      query.append("WHERE t1.id <= ");
+      query.append(10);
+
+      long a = System.currentTimeMillis();
+
+      List<?> objects = calciteSearch.executeQuery(this::defineViews, query.toString());
+      assertThat(objects).isNotNull();
+
+      long b = System.currentTimeMillis();
+
+      long duration = b - a;
+      LOG.info("NUM_TABLES " + NUM_TABLES + " - NUM_ROWS " + NUM_ROWS + " - duration " + duration + " ms <<count>> - " + objects);
    }
 
    public void defineViews(SchemaPlus root) {
@@ -198,7 +223,7 @@ public class JoinQueryTests {
 
       for (int i = 2; i <= NUM_TABLES; i++) {
          String tableName = "table_" + i;
-         String foreignKeyName = "table_" + (i-1) + "_id";
+         String foreignKeyName = "table_" + (i - 1) + "_id";
 
          viewSql = "select cast(_MAP['" + foreignKeyName + "'] AS integer) AS \"" + foreignKeyName + "\" ,"
                + " cast(_MAP['id'] AS integer) AS \"id\""
