@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
 
 import org.apache.calcite.test.CalciteAssert;
@@ -16,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import fax.play.domain.Application;
+import fax.play.extractor.Extractor;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class JoinQueryTest {
@@ -32,7 +32,9 @@ public class JoinQueryTest {
 
    @AfterAll
    public void afterAll() {
-      application.close();
+      if (application != null) {
+         application.close();
+      }
    }
 
    @Test
@@ -56,20 +58,54 @@ public class JoinQueryTest {
    }
 
    @Test
+   public void join_analyze() {
+      CalciteAssert.that()
+            .with(application::createConnection)
+            .query(createQuery(false))
+            .queryContains(list -> {
+               LOG.info("Queries executed on OpenSearch backend: " + list);
+            });
+   }
+
+   @Test
    public void join_manual() throws Exception {
       try (Connection connection = application.createConnection()) {
          try (Statement statement = connection.createStatement()) {
 
             long a = System.currentTimeMillis();
+            long b;
 
             try (ResultSet resultSet = statement.executeQuery(createQuery(false))) {
+               b = System.currentTimeMillis();
                assertThat(resultSet).isNotNull();
-            }
 
-            long b = System.currentTimeMillis();
+               LOG.info("Manual JOIN result " + Extractor.columnExtractor(resultSet));
+            }
 
             long durationInMillis = b - a;
             LOG.info("Manual JOIN NUM_TABLES " +
+                  Application.NUM_TABLES + " - NUM_ROWS " + Application.NUM_ROWS + " - duration " + durationInMillis + " ms");
+         }
+      }
+   }
+
+   @Test
+   public void join_explain() throws Exception {
+      try (Connection connection = application.createConnection()) {
+         try (Statement statement = connection.createStatement()) {
+
+            long a = System.currentTimeMillis();
+            long b;
+
+            try (ResultSet resultSet = statement.executeQuery("explain plan for " + createQuery(false))) {
+               b = System.currentTimeMillis();
+               assertThat(resultSet).isNotNull();
+
+               LOG.info("Explain JOIN result " + Extractor.columnExtractor(resultSet));
+            }
+
+            long durationInMillis = b - a;
+            LOG.info("Explain JOIN NUM_TABLES " +
                   Application.NUM_TABLES + " - NUM_ROWS " + Application.NUM_ROWS + " - duration " + durationInMillis + " ms");
          }
       }
@@ -81,12 +117,14 @@ public class JoinQueryTest {
          try (Statement statement = connection.createStatement()) {
 
             long a = System.currentTimeMillis();
+            long b;
 
             try (ResultSet resultSet = statement.executeQuery(createQuery(true))) {
+               b = System.currentTimeMillis();
                assertThat(resultSet).isNotNull();
-            }
 
-            long b = System.currentTimeMillis();
+               LOG.info("Count JOIN result " + Extractor.columnExtractor(resultSet));
+            }
 
             long durationInMillis = b - a;
             LOG.info("Count JOIN NUM_TABLES " +
@@ -113,7 +151,7 @@ public class JoinQueryTest {
          query.append(" as ");
          query.append(tableAlias);
          query.append(" on ");
-         query.append("t" + (i-1));
+         query.append("t" + (i - 1));
          query.append(".id = ");
          query.append(tableAlias);
          query.append(".");
